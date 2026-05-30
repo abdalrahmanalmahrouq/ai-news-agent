@@ -2,6 +2,8 @@ from langgraph.graph import StateGraph, START, END
 from agent.state import AgentState
 from agent.scraper import scraper_node
 from agent.reader import reader_node
+from agent.validator import validator_node
+from agent.validator import routing_function
 import asyncio
 
 
@@ -10,10 +12,21 @@ def build_graph():
 
     graph.add_node("scraper", scraper_node)
     graph.add_node("reader", reader_node)
+    graph.add_node("validator", validator_node)
+
 
     graph.add_edge(START, "scraper")
     graph.add_edge("scraper", "reader")
-    graph.add_edge("reader", END)
+    graph.add_edge("reader", "validator")
+
+    graph.add_conditional_edges(
+        "validator",
+        routing_function,
+        {
+            "continue": END,
+            "retry": "reader"
+        }
+    )
 
     return graph.compile()
 
@@ -27,14 +40,17 @@ if __name__ == "__main__":
         "urls": ["https://hnrss.org/frontpage"],
         "raw_articles": [],
         "summaries": [],
+        "validated": [],
+        "run_meta": {},
     }
 
     result = asyncio.run(app.ainvoke(initial_state))
 
-    print("\n--- SUMMARIES ---")
-    for s in result["summaries"]:
+    print("\n--- VALIDATED ---")
+    for s in result["validated"]:
         print(f"Headline:  {s['headline']}")
-        print(f"Category:  {s['category']}")
         print(f"Score:     {s['relevance_score']}")
-        print(f"Summary:   {s['summary']}")
         print()
+
+    print(f"Total validated: {len(result['validated'])}")
+    print(f"Retry count: {result['run_meta'].get('retry_count', 0)}")
