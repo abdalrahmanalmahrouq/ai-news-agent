@@ -6,6 +6,31 @@ from agent.state import AgentState
 
 load_dotenv()
 
+CONCURRENCY = 5
+
+async def verify_one(client: TavilyClient, summary: dict, semaphore: asyncio.Semaphore):
+    headline = summary.get("headline", "")
+    async with semaphore:
+        try:
+            response = await asyncio.to_thread(
+                client.search,
+                headline,
+                search_depth="basic",
+                max_result=5
+            )
+            count = len(response.get("results", []))
+            verified = count >= 1
+            summary["verified"] = verified
+            summary["sources_found"] = count
+
+            icon = "\u2713" if verified else "\u2717"
+            label = "Verified" if verified else "Unverified"
+            print(f"  {icon} {label} ({count} sources): {headline[:60]}")
+        except Exception as e:
+            # search failure → benefit of the doubt, don't reject
+            print(f"  \u26a0 Search failed for '{headline[:40]}' \u2014 {e}")
+            summary["verified"] = True
+            summary["sources_found"] = 0
 
 async def verifier_node(state: AgentState) -> dict:
     summaries = state.get("summaries", [])
@@ -20,33 +45,13 @@ async def verifier_node(state: AgentState) -> dict:
         return {"summaries": summaries}
 
     client = TavilyClient(api_key=api_key)
+    semaphore = asyncio.Semaphore(CONCURRENCY)
     print(f"  Verifying {len(summaries)} article(s)...")
 
-    for summary in summaries:
-        headline = summary.get("headline", "")
-        try:
-            # asyncio.to_thread runs the sync Tavily call without blocking the event loop
-            response = await asyncio.to_thread(
-                client.search,
-                headline,
-                search_depth="basic",
-                max_results=5,
-            )
-            sources = response.get("results", [])
-            count   = len(sources)
-            verified = count >= 1      # at least one corroborating source = verified
+    await asyncio.gather(
+        *(verify_one(client, s, semaphore) for s in summaries)
+    )
 
-            summary["verified"]      = verified
-            summary["sources_found"] = count
-
-            icon = "\u2713" if verified else "\u2717"
-            label = "Verified" if verified else "Unverified"
-            print(f"  {icon} {label} ({count} sources): {headline[:60]}")
-
-        except Exception as e:
-            # don't reject on search failure — benefit of the doubt
-            print(f"  \u26a0 Search failed for '{headline[:40]}' \u2014 {e}")
-            summary["verified"]      = True
-            summary["sources_found"] = 0
+    
 
     return {"summaries": summaries}

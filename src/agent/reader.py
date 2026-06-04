@@ -3,7 +3,8 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent  
 from agent.state import AgentState
 from agent.llm import get_llm
-
+import asyncio
+CONCURRENCY = 5
 
 @tool
 def summarize_article(text: str)-> str:
@@ -56,15 +57,9 @@ react_agent = create_react_agent(llm, tools)
 
 
 
-  
-
-async def reader_node(state: AgentState) -> dict:
-    raw_articles = state["raw_articles"]
-    summaries = []
-
-    for article in raw_articles:
-        try:
-            prompt = f"""You are an TECHNOLOGY news analyst. Follow these steps exactly, in order, with no repetition:
+async def read_one(article: dict, semaphore: asyncio.Semaphore) -> dict | None:
+    async with semaphore:                      # one slot = one full ReAct loop
+        prompt = f"""You are an TECHNOLOGY news analyst. Follow these steps exactly, in order, with no repetition:
 
 STEP 1: Call summarize_article once with the article content below.
 STEP 2: Call score_relevance once using the summary and category from step 1.
@@ -82,33 +77,44 @@ Article URL: {article['url']}
 Article Title: {article['title']}
 Article Content: {article['body_text'][:2000]}
 """
+        try:
             result = await react_agent.ainvoke({
                 "messages": [{"role": "user", "content": prompt}]
             })
-
             last_message = result["messages"][-1].content
 
             try:
                 parsed = json.loads(last_message)
-                summaries.append({
+                summary = {
                     "url": article["url"],
                     "headline": parsed.get("headline", "No headline"),
                     "summary": parsed.get("summary", "No summary"),
                     "category": parsed.get("category", "Other"),
                     "relevance_score": float(parsed.get("relevance_score", 0.5)),
-                })
+                }
             except (json.JSONDecodeError, AttributeError):
-                summaries.append({
+                summary = {
                     "url": article["url"],
                     "headline": article.get("title", "No headline"),
                     "summary": last_message[:300],
                     "category": "Other",
                     "relevance_score": 0.5,
-                })
+                }
 
             print(f"✓ Summarized: {article['title'][:60]}")
+            return summary
 
         except Exception as e:
             print(f"✗ Failed: {article['url']} — {e}")
+            return None  
 
+async def reader_node(state: AgentState) -> dict:
+    raw_articles = state["raw_articles"]
+    semaphore = asyncio.Semaphore(CONCURRENCY)
+    
+    results = await asyncio.gather(
+        *(read_one(article, semaphore) for article in raw_articles)
+    )
+
+    summaries = [s for s in results if s is not None]
     return {"summaries": summaries}
