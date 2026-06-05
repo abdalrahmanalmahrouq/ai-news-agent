@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from agent.state import AgentState
@@ -41,46 +42,40 @@ def build_graph(checkpointer):
 
     return graph.compile(checkpointer=checkpointer)
 
+async def run_pipeline(urls: list[str], run_id: str | None = None) -> dict:
+    """Run the full pipeline once and return the final state.
+    This is the reusable core — the CLI, FastAPI, and the scheduler all call it."""
 
-async def main():
+    run_id = run_id or str(uuid.uuid4())[:8]
     initial_state = {
         "urls": [ "https://hnrss.org/frontpage"],
         "raw_articles": [],
         "summaries": [],
         "validated": [],
         "digest": "",
-        "run_meta": {},
+        "run_meta": {"run_id":run_id},
     }
 
-    config = {"configurable": {"thread_id": "run-001"}}
-    
+    config = {"configurable": {"thread_id": run_id}}
+
     async with AsyncSqliteSaver.from_conn_string(get_db_path()) as checkpointer:
         app = build_graph(checkpointer)
-        final_state = {}
- 
-        print("\n\U0001f4e1 Streaming pipeline...\n")
-        async for event in app.astream_events(initial_state, config=config, version="v2"):
-            kind = event["event"]
- 
-            # print each LLM token the moment it arrives
-            if kind == "on_chat_model_stream":
-                chunk = event["data"]["chunk"].content
-                if chunk:
-                    print(chunk, end="", flush=True)
- 
-            # put a newline after each complete LLM response
-            elif kind == "on_chat_model_end":
-                print()
- 
-            # the graph finished — grab the final state
-            elif kind == "on_chain_end" and event.get("name") == "LangGraph":
-                final_state = event["data"].get("output", {})
- 
+        final_state = await app.ainvoke(initial_state, config=config)
+
     log_run(
         run_meta=final_state.get("run_meta", {}),
         raw_articles=final_state.get("raw_articles", []),
         validated=final_state.get("validated", []),
     )
+
+    return final_state
+
+
+async def main():
+    """CLI entry point — runs the pipeline, then shows the result to a human."""
+
+
+    final_state = await run_pipeline(["https://hnrss.org/frontpage"])
     
     digest = final_state.get("digest", "")
     if digest:
@@ -88,14 +83,18 @@ async def main():
             f.write(digest)
         print(f"\n\U0001f4c4 Digest written to last_digest.html ({len(digest)} chars)")
 
+    
+
+
+
     print("\n--- VALIDATED ---")
     for s in final_state.get("validated", []):
         print(f"Headline:  {s['headline']}")
         print(f"Summary:   {s['summary']}")
         print(f"Category:  {s['category']}")
         print(f"Score:     {s['relevance_score']}")
-        print()
- 
+    print()
+
     run_meta = final_state.get("run_meta", {})
     print(f"Run ID:        {run_meta.get('run_id')}")
     print(f"Status:        {run_meta.get('status')}")

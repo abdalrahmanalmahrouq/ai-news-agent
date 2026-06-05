@@ -60,7 +60,7 @@ async def scraper_node(state: AgentState) -> dict:
                 print(f"📡 Fetching feed: {source_url}")
                 response = await client.get(source_url)
                 article_urls = extract_article_urls(response.text, source_url)
-                article_urls = article_urls[:10] # just for testing get first two links 
+                article_urls = article_urls[:2] # just for testing get first two links 
                 print(f"  Found {len(article_urls)} articles in feed")
 
                 to_fetch = []

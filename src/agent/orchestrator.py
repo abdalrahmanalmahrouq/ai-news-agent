@@ -4,7 +4,8 @@ from agent.state import AgentState
 
 
 def orchestrator_node(state: AgentState) -> dict:
-    run_id = str(uuid.uuid4())[:8]
+    run_meta = state.get("run_meta", {})
+    run_id = run_meta.get("run_id") or str(uuid.uuid4())[:8]
     started_at = datetime.utcnow().isoformat()
 
     urls = state.get("urls", [])
