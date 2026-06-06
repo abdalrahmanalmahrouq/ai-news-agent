@@ -1,5 +1,6 @@
-import asyncio
 import uuid
+import asyncio
+from loguru import logger
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from agent.state import AgentState
@@ -12,6 +13,8 @@ from agent.persistence.run_logger import log_run
 from agent.formater import formatter_node
 from agent.delivery import delivery_node
 from agent.verifier import verifier_node
+
+
 def build_graph(checkpointer):
     graph = StateGraph(AgentState)
 
@@ -32,28 +35,28 @@ def build_graph(checkpointer):
     graph.add_conditional_edges(
         "validator",
         routing_function,
-        {
-            "continue": "formatter",
-            "retry": "reader"
-        }
+        {"continue": "formatter", "retry": "reader"},
     )
     graph.add_edge("formatter", "delivery")
     graph.add_edge("delivery", END)
 
     return graph.compile(checkpointer=checkpointer)
 
+
 async def run_pipeline(urls: list[str], run_id: str | None = None) -> dict:
     """Run the full pipeline once and return the final state.
     This is the reusable core — the CLI, FastAPI, and the scheduler all call it."""
-
     run_id = run_id or str(uuid.uuid4())[:8]
+
+    logger.info("Pipeline starting | run_id={}", run_id)
+
     initial_state = {
-        "urls": [ "https://hnrss.org/frontpage"],
+        "urls": urls,
         "raw_articles": [],
         "summaries": [],
         "validated": [],
         "digest": "",
-        "run_meta": {"run_id":run_id},
+        "run_meta": {"run_id": run_id},
     }
 
     config = {"configurable": {"thread_id": run_id}}
@@ -72,34 +75,24 @@ async def run_pipeline(urls: list[str], run_id: str | None = None) -> dict:
 
 
 async def main():
-    """CLI entry point — runs the pipeline, then shows the result to a human."""
-
-
+    logger.add("../data/logs/agent.log", rotation="1 day", retention="7 days", level="INFO")
+    """CLI entry point — runs the pipeline then prints results."""
     final_state = await run_pipeline(["https://hnrss.org/frontpage"])
-    
+
     digest = final_state.get("digest", "")
     if digest:
         with open("last_digest.html", "w") as f:
             f.write(digest)
-        print(f"\n\U0001f4c4 Digest written to last_digest.html ({len(digest)} chars)")
+        logger.info("Digest written to last_digest.html ({} chars)", len(digest))
 
-    
-
-
-
-    print("\n--- VALIDATED ---")
     for s in final_state.get("validated", []):
-        print(f"Headline:  {s['headline']}")
-        print(f"Summary:   {s['summary']}")
-        print(f"Category:  {s['category']}")
-        print(f"Score:     {s['relevance_score']}")
-    print()
+        logger.info("Headline: {} | Score: {}", s['headline'], s['relevance_score'])
 
     run_meta = final_state.get("run_meta", {})
-    print(f"Run ID:        {run_meta.get('run_id')}")
-    print(f"Status:        {run_meta.get('status')}")
-    print(f"Retries:       {run_meta.get('retry_count')}")
-    print(f"Delivered to:  {run_meta.get('delivered_to')}")
+    logger.info("Run ID={} | Status={} | Retries={} | Delivered to={}",
+                run_meta.get('run_id'), run_meta.get('status'),
+                run_meta.get('retry_count'), run_meta.get('delivered_to'))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

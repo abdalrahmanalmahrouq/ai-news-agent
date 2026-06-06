@@ -2,6 +2,7 @@ import os
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
+from loguru import logger
 from dotenv import load_dotenv
 from agent.state import AgentState
 from agent.persistence.subscriber_store import init_subscribers, get_active_subscribers
@@ -47,31 +48,31 @@ def send_email(digest: str, validated: list[dict], recipient: str) -> bool:
     sender = os.getenv("EMAIL_FROM", user)
 
     if not all([host, user, password, recipient]):
-        print("  \u26a0 Delivery: SMTP not configured — skipping email.")
+        logger.warning("Delivery: SMTP not configured — skipping email")
         return False
 
     msg = EmailMessage()
-    msg["Subject"] = f"Technology News Digest \u2014 {datetime.utcnow().strftime('%b %d, %Y')}"
+    msg["Subject"] = f"Technology News Digest — {datetime.utcnow().strftime('%b %d, %Y')}"
     msg["From"] = sender
     msg["To"] = recipient
-    msg.set_content(render_plaintext(validated))      # text/plain part
-    msg.add_alternative(digest, subtype="html")        # text/html part (preferred)
+    msg.set_content(render_plaintext(validated))
+    msg.add_alternative(digest, subtype="html")
 
     try:
         # timeout=20 means a stuck connection fails in 20s instead of hanging forever
         if port == 465:
             with smtplib.SMTP_SSL(host, port, timeout=20) as server:
-                server.login(user, password)            # Gmail: use an APP PASSWORD here
+                server.login(user, password)
                 server.send_message(msg)
         else:
             with smtplib.SMTP(host, port, timeout=20) as server:
-                server.starttls()                       # upgrade to an encrypted connection
-                server.login(user, password)            # Gmail: use an APP PASSWORD here
+                server.starttls()
+                server.login(user, password)
                 server.send_message(msg)
-        print(f"  \u2713 Delivery: email sent to {recipient}")
+        logger.info("✓ Email sent to {}", recipient)
         return True
     except Exception as e:
-        print(f"  \u2717 Delivery: email failed — {e}")
+        logger.error("Email failed to {} — {}", recipient, e)
         return False
 
 
@@ -82,7 +83,7 @@ async def delivery_node(state: AgentState) -> dict:
     run_id = run_meta.get("run_id", "unknown")
 
     if not digest:
-        print("\u26a0 Delivery: no digest to deliver.")
+        logger.warning("Delivery: no digest to deliver")
         run_meta["delivered_to"] = []
         return {"run_meta": run_meta}
 
@@ -91,13 +92,13 @@ async def delivery_node(state: AgentState) -> dict:
     # Output 1 — always archive (cheap, no credentials)
     filepath = archive_digest(digest, run_id)
     delivered_to.append(filepath)
-    print(f"\u2713 Delivery: digest archived \u2192 {filepath}")
+    logger.info("✓ Digest archived → {}", filepath)
 
     if not validated:
-        print("  \u26a0 Delivery: no validated stories — skipping email.")
+        logger.warning("Delivery: no validated stories — skipping email")
         run_meta["delivered_to"] = delivered_to
         return {"run_meta": run_meta}
-    
+
     admin_email = os.getenv("EMAIL_FROM") or os.getenv("SMTP_USER")
     # if admin_email:
     #     print(f"  \u2192 Admin copy \u2192 {admin_email}")
@@ -106,23 +107,21 @@ async def delivery_node(state: AgentState) -> dict:
     
     init_subscribers()
     subscribers = get_active_subscribers()
-    print(f"  \u2192 Broadcasting to {len(subscribers)} subscriber(s)")
+    admin_email = os.getenv("EMAIL_FROM") or os.getenv("SMTP_USER")
+    logger.info("Broadcasting to {} subscriber(s)", len(subscribers))
 
     for sub in subscribers:
         recipient = sub["email"]
         if recipient == admin_email:
-            continue                    # already received the admin copy
-        print(f"    \u2022 {recipient}")
+            continue
+        logger.debug("  Sending to: {}", recipient)
         if send_email(digest, validated, recipient):
             delivered_to.append(f"email:{recipient}")
-
-
 
     run_meta["delivered_to"] = delivered_to
     return {"run_meta": run_meta}
 
 
-# quick local test
 if __name__ == "__main__":
     import asyncio
 
@@ -132,4 +131,4 @@ if __name__ == "__main__":
         "run_meta": {"run_id": "test1234"},
     }
     result = asyncio.run(delivery_node(sample_state))
-    print("delivered_to:", result["run_meta"]["delivered_to"])
+    logger.info("delivered_to: {}", result["run_meta"]["delivered_to"])

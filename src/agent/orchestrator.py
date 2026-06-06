@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from loguru import logger
 from agent.state import AgentState
 
 
@@ -11,7 +12,7 @@ def orchestrator_node(state: AgentState) -> dict:
     urls = state.get("urls", [])
 
     if not urls:
-        print("✗ Orchestrator: no URLs provided. Aborting.")
+        logger.error("Orchestrator: no URLs provided — aborting")
         return {
             "run_meta": {
                 "run_id": run_id,
@@ -23,8 +24,8 @@ def orchestrator_node(state: AgentState) -> dict:
             }
         }
 
-    print(f"▶ Run {run_id} started at {started_at}")
-    print(f"  URLs to process: {len(urls)}")
+    logger.info("▶ Run {} started at {}", run_id, started_at)
+    logger.info("  URLs to process: {}", len(urls))
 
     return {
         "run_meta": {

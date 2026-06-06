@@ -1,3 +1,4 @@
+from loguru import logger
 from agent.state import AgentState
 
 
@@ -27,27 +28,23 @@ def validator_node(state: AgentState) -> dict:
             count = summary.get("sources_found", 0)
             reasons.append(f"not verified — {count} corroborating source(s) found")
 
-            
         if reasons:
             rejected.append({"summary": summary, "reasons": reasons})
-            print(f"✗ Rejected: {summary.get('headline', 'unknown')[:60]}")
-            print(f"  Reasons: {', '.join(reasons)}")
+            logger.warning("✗ Rejected: {} | reasons: {}",
+                           summary.get('headline', 'unknown')[:60], ', '.join(reasons))
         else:
             validated.append(summary)
-            print(f"✓ Validated: {summary.get('headline', '')[:60]}")
+            logger.info("✓ Validated: {}", summary.get('headline', '')[:60])
 
     run_meta["rejected"] = rejected
     run_meta["retry_count"] = run_meta.get("retry_count", 0) + 1
 
-    return {
-        "validated": validated,
-        "run_meta": run_meta,
-    }
+    return {"validated": validated, "run_meta": run_meta}
 
 
 def routing_function(state: AgentState) -> str:
-    validated  = state.get("validated", [])
-    run_meta   = state.get("run_meta", {})
+    validated = state.get("validated", [])
+    run_meta = state.get("run_meta", {})
     retry_count = run_meta.get("retry_count", 0)
 
     if len(validated) == 0 and retry_count < 2:
@@ -57,6 +54,6 @@ def routing_function(state: AgentState) -> str:
             if any("low relevance" not in reason for reason in r["reasons"])
         ]
         if quality_failures:
-            return "retry"   # genuine output quality problem — retry worth it
+            return "retry" # genuine output quality problem — retry worth it
 
-    return "continue"        # low relevance or retries exhausted — accept what we have
+    return "continue" # low relevance or retries exhausted — accept what we have

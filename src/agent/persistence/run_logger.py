@@ -1,6 +1,7 @@
 import sqlite3
 import os
 from datetime import datetime
+from loguru import logger
 
 
 def get_db_path():
@@ -47,25 +48,19 @@ def log_run(run_meta: dict, raw_articles: list, validated: list):
     conn = sqlite3.connect(get_db_path())
     conn.execute("""
         INSERT OR REPLACE INTO run_logs
-        (run_id, started_at, completed_at, duration_ms, articles_scraped, articles_validated, articles_rejected, status, errors)
+        (run_id, started_at, completed_at, duration_ms, articles_scraped,
+         articles_validated, articles_rejected, status, errors)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        run_meta.get("run_id"),
-        started_at,
-        completed_at,
-        duration_ms,
-        len(raw_articles),
-        len(validated),
-        len(rejected),
+        run_meta.get("run_id"), started_at, completed_at, duration_ms,
+        len(raw_articles), len(validated), len(rejected),
         run_meta.get("status", "completed"),
         str(errors) if errors else None,
     ))
     conn.commit()
     conn.close()
 
-    print(f"\n📊 Run logged:")
-    print(f"   Run ID:    {run_meta.get('run_id')}")
-    print(f"   Duration:  {duration_ms}ms")
-    print(f"   Scraped:   {len(raw_articles)}")
-    print(f"   Validated: {len(validated)}")
-    print(f"   Rejected:  {len(rejected)}")
+    logger.info(
+        "📊 Run complete | run_id={} | duration={}ms | scraped={} | validated={} | rejected={}",
+        run_meta.get("run_id"), duration_ms, len(raw_articles), len(validated), len(rejected)
+    )
