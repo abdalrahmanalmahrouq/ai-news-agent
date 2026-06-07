@@ -10,9 +10,10 @@ wheels/
 .venv
 .env
 documents/ 
-images/
+
 
 sample_digest.html
 test_smtp.py
 last_digest.html
 data/
+structure.png
