@@ -8,3 +8,21 @@ services:
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+  
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./certs:/etc/caddy/certs
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - agent
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,4 +1,5 @@
 .env 
+*.pem
 .git
 __pycache__
 *.pyc
