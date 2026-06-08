@@ -58,7 +58,7 @@ async def scraper_node(state: AgentState) -> dict:
                 logger.info("📡 Fetching feed: {}", source_url)
                 response = await client.get(source_url)
                 article_urls = extract_article_urls(response.text, source_url)
-                article_urls = article_urls[:10]
+                # article_urls = article_urls[:10]
                 logger.info("  Found {} articles in feed", len(article_urls))
 
                 to_fetch = []

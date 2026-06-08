@@ -36,13 +36,23 @@ def get_active_subscribers() -> list[dict]:
 def add_subscriber(email: str, name: str = "") -> None:
     init_subscribers()
     conn = sqlite3.connect(get_db_path())
-    conn.execute(
+    cur = conn.execute(
         "INSERT OR IGNORE INTO subscribers (email, name, active, created_at) VALUES (?, ?, 1, ?)",
         (email, name, datetime.utcnow().isoformat()),
     )
+    if cur.rowcount == 0:
+        cur = conn.execute(
+            "UPDATE subscribers SET active = 1 WHERE email = ? AND active = 0",
+            (email,),
+        )
+        if cur.rowcount > 0:
+            print(f"✓ Subscriber reactivated: {email} ({name})")
+        else:
+            print(f"  Subscriber already active: {email}")
+    else:
+        print(f"✓ Subscriber added: {email} ({name})")
     conn.commit()
     conn.close()
-    print(f"✓ Subscriber added: {email} ({name})")
 
 
 def deactivate_subscriber(email: str) -> None:
