@@ -52,7 +52,9 @@ def build_digest(intro: str, validated: list[dict]) -> str:
           {items}
           <tr>
             <td style="padding:8px 24px 28px 24px; text-align:center;">
-              <p style="font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#9ca3af; margin:0;">You're receiving this because you subscribed to the AI News Digest.</p>
+             <p style="font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#9ca3af; margin:0;">You're receiving this because you subscribed to 
+              <a href='https://technewsagent.indevs.in' style="text-decoration:none" target="_blank">Technewsagent</a>
+              Digest.</p>
             </td>
           </tr>
         </table>
