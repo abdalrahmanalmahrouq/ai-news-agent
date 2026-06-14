@@ -210,7 +210,7 @@ function App() {
       <header className="hero" id="subscribe">
         <div className="wrap hero-grid">
           <div>
-            <span className="eyebrow"><span className="live"></span>AI news agent · every weekday · 9:00 AM</span>
+            <span className="eyebrow"><span className="live"></span>Tech news agent · every weekday · 9:00 AM</span>
             <h1 className="headline">Stop scrolling tech news. <span className="hl">Let an agent read it</span> for you.</h1>
             <p className="subhead">Your AI agent reads 50+ sources overnight and sends one sharp, 5-minute brief of what actually matters — built for engineers who don't have time for noise.</p>
             <Signup id="hero" />
@@ -297,7 +297,7 @@ function App() {
             <a href="#subscribe">Subscribe</a>
             <a href="#">Privacy</a>
           </div>
-          <div className="copy">© 2026 Technology News Agent</div>
+          <div className="copy">© 2026 By <a href="https://www.linkedin.com/in/abdalrahman-al-mahrouq-38a54b267/" style={{color:"inherit"}}> Abdalrahman Almahrouq </a> </div>
         </div>
       </footer>
 

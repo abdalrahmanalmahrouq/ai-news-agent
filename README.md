@@ -1,4 +1,4 @@
-# 🤖 AI News Agent
+# <img src="src/static/mark.svg" width="40" height="40" style="vertical-align: middle" />  Technology News Agent
 
 An autonomous multi-agent pipeline that scrapes Hacker News, summarizes articles with an LLM, verifies headlines against the web, and delivers a curated tech digest to subscribers every day at **07:00 UTC** — fully automated, no human intervention required.
 
